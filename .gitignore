@@ -1,0 +1,57 @@
+# ─────────────────────────────────────────────────────────────────────
+# PyBe Latest — root .gitignore
+#
+# The server/ and client/ subprojects each have their own .gitignore
+# that catches their node_modules, .env, dist, etc. This file covers
+# top-level files that don't belong in the repo (OS junk, editor
+# scratch, logs that bubble up to the root, etc.).
+# ─────────────────────────────────────────────────────────────────────
+
+# ── Node / build ────────────────────────────────────────────────────
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ── Build artefacts ─────────────────────────────────────────────────
+dist/
+build/
+*.tsbuildinfo
+
+# ── Env files (defence in depth — subproject gitignores already
+#    exclude .env, but catching them here too means even a stray
+#    .env at the project root can never leak) ────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── Logs / runtime data ────────────────────────────────────────────
+*.log
+coverage/
+.nyc_output/
+.cache/
+.parcel-cache/
+
+# ── Editor / OS ────────────────────────────────────────────────────
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json.example
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── OpenClaw workspace cache (if it ever lands at the project root) ─
+.openclaw/
+
+# ── Test scratch / one-off probes ───────────────────────────────────
+# server/scripts/_*.js are committed (they're real fixtures + scanners).
+# This rule intentionally matches nothing in the current layout; it's a
+# safety net for accidental scratch files that name themselves with a
+# leading underscore elsewhere.
+*.tmp
+*.bak
