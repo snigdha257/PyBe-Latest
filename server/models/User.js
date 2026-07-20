@@ -6,6 +6,11 @@ const userSchema = new mongoose.Schema(
     passwordHash: { type: String, required: true },
     name: { type: String, required: true, trim: true },
     xp: { type: Number, default: 0 },
+    theme: {
+      type: String,
+      enum: ['detective', 'scholar', 'space', 'courtroom'],
+      default: null,
+    },
     createdAt: { type: Date, default: Date.now },
   },
   { timestamps: false }

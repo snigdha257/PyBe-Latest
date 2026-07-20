@@ -30,12 +30,15 @@ function signAccessToken(userId) {
   );
 }
 
+const VALID_THEMES = ['detective', 'scholar', 'space', 'courtroom'];
+
 function publicUser(user) {
   return {
     id: String(user._id),
     email: user.email,
     name: user.name,
     xp: user.xp,
+    theme: user.theme || null,
   };
 }
 
@@ -76,7 +79,7 @@ async function buildInitialProgress(userId) {
 // POST /api/auth/signup
 router.post('/signup', async (req, res) => {
   try {
-    const { email, name, password } = req.body || {};
+    const { email, name, password, theme } = req.body || {};
 
     if (!EMAIL_RE.test(email || '')) {
       return res.status(400).json({ error: 'Valid email is required' });
@@ -86,6 +89,11 @@ router.post('/signup', async (req, res) => {
     }
     if (!password || password.length < 8) {
       return res.status(400).json({ error: 'Password must be at least 8 characters' });
+    }
+    if (!theme || !VALID_THEMES.includes(theme)) {
+      return res.status(400).json({
+        error: 'Theme is required. Choose one of: ' + VALID_THEMES.join(', '),
+      });
     }
 
     const normalizedEmail = email.toLowerCase().trim();
@@ -101,6 +109,7 @@ router.post('/signup', async (req, res) => {
       email: normalizedEmail,
       name: name.trim(),
       passwordHash,
+      theme,
     });
 
     const moduleCount = await buildInitialProgress(user._id);

@@ -3,10 +3,20 @@
  *
  *   GET /api/module/:id
  *
- * Returns the requested module's content + the user's UserProgress for it.
- * Story / whyPairing / practicalTask / reflectionPrompt get `{learner}`
- * substituted with the logged-in user's name on the server so the client
- * doesn't need to know about the placeholder.
+ * Returns the module's problem-first content + user progress state.
+ *
+ * Content strategy:
+ *   - Returns module-level content: name, problem, pythonSolution, evaluationCriteria
+ *   - Returns progress-level state: currentStep, learnerAnswer, evaluationResult,
+ *     pythonSolutionViewed, storyRound
+ *   - The currentStep tells the client which panel to show:
+ *       'problem'   → show the problem card
+ *       'think'     → show the "how would you solve it?" textarea
+ *       'evaluated' → show AI evaluation + "Show me how Python does it"
+ *       'reveal'    → show pythonSolution + "Try it yourself"
+ *       'applied'   → show practical task
+ *       'quiz'      → show quiz
+ *       'done'      → show completion
  *
  * Responses:
  *   200 →  { module: {...}, progress: {...}, path: {...} }
@@ -16,7 +26,6 @@
 const express = require('express');
 const { LearningPath, Module, UserProgress } = require('../models');
 const { authRequired } = require('../middleware/auth');
-const { substituteLearner } = require('../utils/learner');
 
 const router = express.Router();
 
@@ -39,8 +48,7 @@ router.get('/module/:id', authRequired, async (req, res) => {
       moduleId: moduleDoc._id,
     }).lean();
 
-    // If the user has no progress row at all (shouldn't normally happen —
-    // signup seeds 9 progress docs), treat it as locked.
+    // If the user has no progress row at all, treat it as locked.
     const status = progress?.status || 'locked';
     if (status === 'locked') {
       return res
@@ -48,31 +56,38 @@ router.get('/module/:id', authRequired, async (req, res) => {
         .json({ error: 'This module is locked for your account.' });
     }
 
-    const learnerName = req.user?.name || 'learner';
-
+    // Serve problem-first fields (new modules)
+    // Legacy fields are still returned for backwards compat with older modules
     res.json({
       module: {
         id: String(moduleDoc._id),
         order: moduleDoc.order,
         name: moduleDoc.name,
-        story: substituteLearner(moduleDoc.story, learnerName),
-        whyPairing: substituteLearner(moduleDoc.whyPairing, learnerName),
-        practicalTask: substituteLearner(moduleDoc.practicalTask, learnerName),
-        reflectionPrompt: substituteLearner(
-          moduleDoc.reflectionPrompt,
-          learnerName
-        ),
-        quizQuestion: moduleDoc.quizQuestion,
-        quizChoices: moduleDoc.quizChoices,
+        // Problem-first content
+        problem: moduleDoc.problem || '',
+        evaluationCriteria: moduleDoc.evaluationCriteria || [],
+        pythonSolution: moduleDoc.pythonSolution || { explanation: '', code: '' },
+        // Legacy story fields (may be empty for new modules)
+        story: moduleDoc.story || '',
+        whyPairing: moduleDoc.whyPairing || '',
+        practicalTask: moduleDoc.practicalTask || '',
+        quizQuestion: moduleDoc.quizQuestion || '',
+        quizChoices: moduleDoc.quizChoices || [],
+        reflectionPrompt: moduleDoc.reflectionPrompt || '',
       },
       progress: {
         status,
-        reflectionText: progress.reflectionText || '',
-        codeSubmission: progress.codeSubmission || '',
-        quizPassed: !!progress.quizPassed,
-        xpEarned: progress.xpEarned ?? 0,
-        completedAt: progress.completedAt ?? null,
-        updatedAt: progress.updatedAt ?? null,
+        currentStep: progress?.currentStep || 'problem',
+        learnerAnswer: progress?.learnerAnswer || '',
+        evaluationResult: progress?.evaluationResult || null,
+        pythonSolutionViewed: progress?.pythonSolutionViewed || false,
+        storyRound: progress?.storyRound ?? 0,
+        reflectionText: progress?.reflectionText || '',
+        codeSubmission: progress?.codeSubmission || '',
+        quizPassed: !!progress?.quizPassed,
+        xpEarned: progress?.xpEarned ?? 0,
+        completedAt: progress?.completedAt ?? null,
+        updatedAt: progress?.updatedAt ?? null,
       },
       path: pathDoc
         ? {

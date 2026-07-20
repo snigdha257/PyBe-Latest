@@ -132,4 +132,10 @@ export const api = {
     }),
   submitQuiz: (moduleId, answer) =>
     request('POST', `/api/progress/${moduleId}/quiz`, { answer }),
+  regenerateStory: (moduleId) =>
+    request('POST', `/api/progress/${moduleId}/story/regenerate`),
+  evaluateModule: (moduleId, learnerAnswer) =>
+    request('POST', `/api/progress/${moduleId}/evaluate`, { learnerAnswer }),
+  markRevealed: (moduleId) =>
+    request('POST', `/api/progress/${moduleId}/reveal`),
 };

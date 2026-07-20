@@ -5,6 +5,7 @@
  *   PATCH /api/progress/:moduleId/draft
  *   PATCH /api/progress/:moduleId/reflection
  *   POST  /api/progress/:moduleId/quiz
+ *   POST /api/progress/:moduleId/story/regenerate
  *
  * GET returns the logged-in user's UserProgress for every module, grouped by
  * LearningPath.
@@ -13,11 +14,15 @@
  * whenever both a non-empty reflectionText AND quizPassed=true exist for a
  * UserProgress document, the doc is flipped to status='completed' and the next
  * module in the same path is unlocked. Last module in a path → nothing further.
+ *
+ * POST /story/regenerate generates a new AI story for the next storyRound,
+ * caches it in UserProgress.storyCache, and returns the personalised result.
  */
 const express = require('express');
-const { LearningPath, Module, UserProgress } = require('../models');
+const { LearningPath, Module, User, UserProgress } = require('../models');
 const { authRequired } = require('../middleware/auth');
 const { tryCompleteAndUnlock } = require('../utils/completion');
+const { generateModuleContent, evaluateSolution } = require('../services/llm');
 
 const router = express.Router();
 
@@ -172,7 +177,18 @@ async function locateModuleAndProgress(req, res) {
       .json({ error: 'This module is locked for your account.' });
     return null;
   }
-  return { moduleDoc, progress };
+
+  // When storyRound > 0, use the cached quizAnswer from the generated content
+  // instead of the seeded module.quizAnswer, so the quiz is consistent with
+  // the narrative the learner actually read.
+  const storyRound = progress.storyRound ?? 0;
+  const cachedAnswer =
+    storyRound > 0
+      ? progress.storyCache?.get(String(storyRound))?.quizAnswer
+      : null;
+  const effectiveAnswer = cachedAnswer ?? moduleDoc.quizAnswer;
+
+  return { moduleDoc, progress, effectiveAnswer };
 }
 
 function publicProgress(p) {
@@ -291,9 +307,9 @@ router.post('/progress/:moduleId/quiz', authRequired, async (req, res) => {
 
     const located = await locateModuleAndProgress(req, res);
     if (!located) return;
-    const { moduleDoc, progress } = located;
+    const { moduleDoc, progress, effectiveAnswer } = located;
 
-    const expected = String(moduleDoc.quizAnswer || '').trim().toLowerCase();
+    const expected = String(effectiveAnswer || '').trim().toLowerCase();
     const submitted = String(answer).trim().toLowerCase();
     const correct = expected.length > 0 && expected === submitted;
 
@@ -319,6 +335,187 @@ router.post('/progress/:moduleId/quiz', authRequired, async (req, res) => {
   } catch (err) {
     console.error('quiz route error:', err);
     res.status(500).json({ error: 'Failed to submit quiz' });
+  }
+});
+
+// ── /story/regenerate ─────────────────────────────────────────────────────
+
+/**
+ * POST /api/progress/:moduleId/story/regenerate
+ *
+ * Generates a new AI story for the next storyRound and caches it.
+ * The user's progress record is loaded and updated within a MongoDB
+ * transaction so storyRound and storyCache stay in sync.
+ *
+ * Responses:
+ *   200 → { storyRound: number, story: string, whyPairing: string }
+ *   400 → { error: "Story regeneration is already in progress." }
+ *   403 → { error: "This module is locked for your account." }
+ *   404 → { error: "Module not found" }
+ *   503 → { error: "Story generation unavailable (LLM service not configured)." }
+ */
+router.post('/progress/:moduleId/story/regenerate', authRequired, async (req, res) => {
+  try {
+    let moduleDoc;
+    try {
+      moduleDoc = await Module.findById(req.params.moduleId).lean();
+    } catch (e) {
+      return res.status(404).json({ error: 'Module not found' });
+    }
+    if (!moduleDoc) return res.status(404).json({ error: 'Module not found' });
+
+    const progress = await UserProgress.findOne({
+      userId: req.userId,
+      moduleId: moduleDoc._id,
+    });
+
+    if (!progress || progress.status === 'locked') {
+      return res.status(403).json({ error: 'This module is locked for your account.' });
+    }
+
+    const nextRound = (progress.storyRound || 0) + 1;
+
+    // Look up the user's chosen theme (set at signup) to select the narrative frame
+    const user = await User.findById(req.userId).lean();
+    const theme = user?.theme || 'detective';
+
+    const learnerName = req.user?.name || 'learner';
+
+    let generated;
+    try {
+      generated = await generateModuleContent(moduleDoc.name, learnerName, theme);
+    } catch (llmErr) {
+      console.error('[story-regenerate] LLM error:', llmErr.message);
+      if (llmErr.message.includes('GROQ_API_KEY') || llmErr.message.includes('not set')) {
+        return res.status(503).json({ error: 'Story generation unavailable (GROQ_API_KEY not set in server/.env). Get a free key at https://console.groq.com/keys' });
+      }
+      return res.status(503).json({ error: 'Story generation failed: ' + llmErr.message });
+    }
+
+    // Persist: increment round + cache the full module content
+    // storyRound is only for caching history; the theme is static per user
+    progress.storyRound = nextRound;
+    if (!progress.storyCache) progress.storyCache = {};
+    progress.storyCache.set(String(nextRound), generated);
+    progress.updatedAt = new Date();
+    await progress.save();
+
+    res.json({
+      storyRound: nextRound,
+      story: generated.story,
+      whyPairing: generated.whyPairing,
+      practicalTask: generated.practicalTask,
+      quizQuestion: generated.quizQuestion,
+      quizChoices: generated.quizChoices,
+      reflectionPrompt: generated.reflectionPrompt,
+    });
+  } catch (err) {
+    console.error('[story-regenerate] route error:', err);
+    res.status(500).json({ error: 'Failed to generate story' });
+  }
+});
+
+// ── /evaluate ────────────────────────────────────────────────────────────────
+
+/**
+ * POST /api/progress/:moduleId/evaluate
+ *
+ * Step 2 → 3 of the problem-first flow:
+ *   1. Learner reads the problem (problem step)
+ *   2. Learner writes how they'd solve it (think step) — saved via this endpoint
+ *   3. AI evaluates their answer and returns detailed feedback
+ *
+ * Body: { learnerAnswer: string }
+ *
+ *   200 → { evaluationResult: EvaluationResult, currentStep: string }
+ *   400 → { error: "learnerAnswer is required" }
+ *   403 → { error: "Module is locked" }
+ *   404 → { error: "Module not found" }
+ *   503 → { error: "LLM unavailable" }
+ */
+router.post('/progress/:moduleId/evaluate', authRequired, async (req, res) => {
+  try {
+    const { learnerAnswer } = req.body || {};
+    if (!learnerAnswer || typeof learnerAnswer !== 'string' || !learnerAnswer.trim()) {
+      return res.status(400).json({ error: 'learnerAnswer is required' });
+    }
+    const trimmed = learnerAnswer.trim();
+    if (trimmed.length > 2000) {
+      return res.status(400).json({ error: 'learnerAnswer must be under 2000 characters' });
+    }
+
+    const moduleDoc = await Module.findById(req.params.moduleId).lean();
+    if (!moduleDoc) return res.status(404).json({ error: 'Module not found' });
+
+    const progress = await UserProgress.findOne({
+      userId: req.userId,
+      moduleId: moduleDoc._id,
+    });
+    if (!progress || progress.status === 'locked') {
+      return res.status(403).json({ error: 'Module is locked' });
+    }
+
+    let evaluation;
+    try {
+      evaluation = await evaluateSolution(moduleDoc, trimmed);
+    } catch (llmErr) {
+      console.error('[evaluate] LLM error:', llmErr.message);
+      if (llmErr.message.includes('GROQ_API_KEY') || llmErr.message.includes('not set')) {
+        return res.status(503).json({ error: 'Evaluation unavailable (GROQ_API_KEY not set). Get a free key at https://console.groq.com/keys' });
+      }
+      return res.status(503).json({ error: 'Evaluation failed: ' + llmErr.message });
+    }
+
+    // Persist the learner's answer + evaluation result
+    progress.learnerAnswer = trimmed;
+    progress.evaluationResult = evaluation;
+    progress.currentStep = 'evaluated';
+    progress.updatedAt = new Date();
+    await progress.save();
+
+    res.json({ evaluationResult: evaluation, currentStep: 'evaluated' });
+  } catch (err) {
+    console.error('[evaluate] route error:', err);
+    res.status(500).json({ error: 'Failed to evaluate answer' });
+  }
+});
+
+// ── /reveal ──────────────────────────────────────────────────────────────────
+
+/**
+ * POST /api/progress/:moduleId/reveal
+ *
+ * Step 3 → 4: Marks that the learner has seen the Python solution.
+ *
+ *   200 → { pythonSolution: {...}, currentStep: 'reveal' }
+ *   403 → { error: "Module is locked" }
+ *   404 → { error: "Module not found" }
+ */
+router.post('/progress/:moduleId/reveal', authRequired, async (req, res) => {
+  try {
+    const moduleDoc = await Module.findById(req.params.moduleId).lean();
+    if (!moduleDoc) return res.status(404).json({ error: 'Module not found' });
+
+    const progress = await UserProgress.findOne({
+      userId: req.userId,
+      moduleId: moduleDoc._id,
+    });
+    if (!progress || progress.status === 'locked') {
+      return res.status(403).json({ error: 'Module is locked' });
+    }
+
+    progress.pythonSolutionViewed = true;
+    progress.currentStep = 'reveal';
+    progress.updatedAt = new Date();
+    await progress.save();
+
+    res.json({
+      pythonSolution: moduleDoc.pythonSolution,
+      currentStep: 'reveal',
+    });
+  } catch (err) {
+    console.error('[reveal] route error:', err);
+    res.status(500).json({ error: 'Failed to mark solution as viewed' });
   }
 });
 
