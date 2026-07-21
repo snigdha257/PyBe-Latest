@@ -15,7 +15,11 @@
  * module in the same path is unlocked. Last module in a path → nothing further.
  */
 const express = require('express');
+<<<<<<< Updated upstream
 const { LearningPath, Module, UserProgress } = require('../models');
+=======
+const { LearningPath, Module, User, UserProgress, CaseStudy } = require('../models');
+>>>>>>> Stashed changes
 const { authRequired } = require('../middleware/auth');
 const { tryCompleteAndUnlock } = require('../utils/completion');
 
@@ -32,14 +36,22 @@ function firstSentence(text, maxLen = 110) {
 
 router.get('/progress', authRequired, async (req, res) => {
   try {
-    const [paths, modules, progress] = await Promise.all([
+    const [paths, modules, progress, caseStudies] = await Promise.all([
       LearningPath.find().sort({ order: 1 }).lean(),
       Module.find().lean(),
       UserProgress.find({ userId: req.userId }).lean(),
+      CaseStudy.find().lean(),
     ]);
 
     const progressByModuleId = new Map(
-      progress.map((p) => [String(p.moduleId), p])
+      progress.filter(p => p.moduleId).map((p) => [String(p.moduleId), p])
+    );
+    const progressByCaseStudyId = new Map(
+      progress.filter(p => p.caseStudyId).map(p => [String(p.caseStudyId), p])
+    );
+
+    const caseStudiesByPath = new Map(
+      caseStudies.map(cs => [String(cs.pathId), cs])
     );
 
     const out = paths.map((path) => {
@@ -60,12 +72,20 @@ router.get('/progress', authRequired, async (req, res) => {
           };
         });
 
+      const cs = caseStudiesByPath.get(String(path._id));
+      const csProg = cs ? progressByCaseStudyId.get(String(cs._id)) : null;
+
       return {
         pathId: String(path._id),
         name: path.name,
         description: path.description,
         order: path.order,
         modules: pathModules,
+        caseStudy: cs ? {
+          id: String(cs._id),
+          title: cs.title,
+          status: csProg?.status || 'locked'
+        } : null
       };
     });
 

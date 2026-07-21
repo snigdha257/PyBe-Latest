@@ -21,19 +21,21 @@ const VB_H = 200;
 
 // (x, y) positions for the three nodes
 const NODES = [
-  { x: 90, y: 40 },
-  { x: 400, y: 160 },
-  { x: 710, y: 40 },
+  { x: 80, y: 40 },
+  { x: 290, y: 160 },
+  { x: 510, y: 40 },
+  { x: 720, y: 160 },
 ];
 
-// Two cubic Bézier segments chained: top-left → bottom-middle → top-right
+// Two cubic Bézier segments chained: top-left → bottom-middle → top-right -> bottom-right
 const TRAIL_D = [
   `M ${NODES[0].x},${NODES[0].y}`,
-  `C 250,40 250,160 ${NODES[1].x},${NODES[1].y}`,
-  `C 550,160 550,40 ${NODES[2].x},${NODES[2].y}`,
+  `C 180,40 180,160 ${NODES[1].x},${NODES[1].y}`,
+  `C 400,160 400,40 ${NODES[2].x},${NODES[2].y}`,
+  `C 620,40 620,160 ${NODES[3].x},${NODES[3].y}`,
 ].join(' ');
 
-function Node({ status, label, to }) {
+function Node({ status, label, to, isCaseStudy }) {
   const r = 28;
 
   let fill = '#ffffff';
@@ -41,7 +43,16 @@ function Node({ status, label, to }) {
   let strokeWidth = 2;
   let dash = '4 4';
   let cursor = 'cursor-not-allowed';
-  let inner = (
+  let inner = isCaseStudy ? (
+    <text
+      textAnchor="middle"
+      dominantBaseline="central"
+      className="select-none"
+      style={{ fontSize: '20px' }}
+    >
+      🔍
+    </text>
+  ) : (
     <text
       textAnchor="middle"
       dominantBaseline="central"
@@ -58,7 +69,16 @@ function Node({ status, label, to }) {
     strokeWidth = 3;
     dash = '0';
     cursor = 'cursor-pointer';
-    inner = (
+    inner = isCaseStudy ? (
+      <text
+        textAnchor="middle"
+        dominantBaseline="central"
+        className="select-none"
+        style={{ fontSize: '20px' }}
+      >
+        🔍
+      </text>
+    ) : (
       <text
         textAnchor="middle"
         dominantBaseline="central"
@@ -119,8 +139,11 @@ function Node({ status, label, to }) {
   );
 }
 
-export default function PathTrail({ pathName, pathDescription, modules }) {
+export default function PathTrail({ pathId, pathName, pathDescription, modules, caseStudy, isPrevPathCompleted }) {
   if (!modules?.length) return null;
+
+  const isCaseStudyUnlocked = modules.every(m => m.status === 'completed' || m.status === 'completed_via_placement');
+  const csStatus = caseStudy?.status === 'completed' ? 'completed' : (isCaseStudyUnlocked ? 'unlocked' : 'locked');
 
   return (
     <section
@@ -159,25 +182,54 @@ export default function PathTrail({ pathName, pathDescription, modules }) {
           />
 
           {/* Nodes, placed at the trail's anchor points */}
-          {modules.map((m, i) => (
-            <g key={m.moduleId} transform={`translate(${NODES[i].x},${NODES[i].y})`}>
+          {modules.map((m, i) => {
+            const isFirstModule = m.order === 1;
+            const needsPlacement = isFirstModule && !isPrevPathCompleted && m.status === 'unlocked';
+            const toUrl = needsPlacement ? `/placement/${pathId}` : `/module/${m.moduleId}`;
+
+            return (
+              <g key={m.moduleId} transform={`translate(${NODES[i].x},${NODES[i].y})`}>
+                <Node
+                  status={m.status}
+                  label={String(m.order)}
+                  sub={m.name}
+                  to={toUrl}
+                />
+              </g>
+            );
+          })}
+          
+          {caseStudy && (
+            <g transform={`translate(${NODES[3].x},${NODES[3].y})`}>
               <Node
-                status={m.status}
-                label={String(m.order)}
-                sub={m.name}
-                to={`/module/${m.moduleId}`}
+                status={csStatus}
+                isCaseStudy={true}
+                to={`/case-study/${pathId}`}
+                label="CS"
               />
             </g>
-          ))}
+          )}
         </svg>
       </div>
 
       {/* Module list — name + teaser under each node */}
       <ol className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
         {modules.map((m) => {
+          const isFirstModule = m.order === 1;
+          const needsPlacement = isFirstModule && !isPrevPathCompleted && m.status === 'unlocked';
           const clickable = m.status !== 'locked';
           const Comp = clickable ? Link : 'div';
-          const compProps = clickable ? { to: `/module/${m.moduleId}` } : {};
+          
+          let toUrl = `/module/${m.moduleId}`;
+          let compState = {};
+          
+          if (needsPlacement) {
+            toUrl = `/placement/${pathId}`;
+            compState = { pathName };
+          }
+          
+          const compProps = clickable ? { to: toUrl, state: compState } : {};
+          
           return (
             <li key={m.moduleId}>
               <Comp
@@ -186,8 +238,10 @@ export default function PathTrail({ pathName, pathDescription, modules }) {
                   'block rounded-lg border p-3 h-full',
                   m.status === 'locked'
                     ? 'border-slate-200 bg-slate-50'
-                    : m.status === 'completed'
+                    : m.status === 'completed' || m.status === 'completed_via_placement'
                     ? 'border-emerald-300 bg-emerald-50 hover:bg-emerald-100 transition'
+                    : needsPlacement
+                    ? 'border-blue-400 bg-white hover:bg-blue-50 transition'
                     : 'border-emerald-400 bg-white hover:bg-emerald-50 transition',
                 ].join(' ')}
               >
@@ -195,7 +249,7 @@ export default function PathTrail({ pathName, pathDescription, modules }) {
                   <span className="font-semibold text-slate-800">
                     {m.order}. {m.name}
                   </span>
-                  <StatusBadge status={m.status} />
+                  <StatusBadge status={m.status} needsPlacement={needsPlacement} />
                 </div>
                 <p className="text-slate-500 mt-1 leading-snug">{m.teaser}</p>
               </Comp>
@@ -203,12 +257,50 @@ export default function PathTrail({ pathName, pathDescription, modules }) {
           );
         })}
       </ol>
+      
+      {caseStudy && (
+        <div className="mt-3 text-sm">
+          {csStatus !== 'locked' ? (
+            <Link
+              to={`/case-study/${pathId}`}
+              className={`block rounded-lg border p-3 w-full text-left transition ${
+                csStatus === 'completed' 
+                  ? 'border-emerald-300 bg-emerald-50 hover:bg-emerald-100' 
+                  : 'border-indigo-300 bg-indigo-50 hover:bg-indigo-100'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-slate-800">
+                  Case Study: {caseStudy.title}
+                </span>
+                <StatusBadge status={csStatus} needsPlacement={false} />
+              </div>
+            </Link>
+          ) : (
+            <div className="block rounded-lg border p-3 w-full text-left border-slate-200 bg-slate-50">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-slate-800">
+                  Case Study: {caseStudy.title}
+                </span>
+                <StatusBadge status="locked" needsPlacement={false} />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </section>
   );
 }
 
-function StatusBadge({ status }) {
-  if (status === 'completed') {
+function StatusBadge({ status, needsPlacement }) {
+  if (needsPlacement) {
+    return (
+      <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-medium whitespace-nowrap shrink-0 ml-2">
+        Take placement
+      </span>
+    );
+  }
+  if (status === 'completed' || status === 'completed_via_placement') {
     return (
       <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500 text-white font-medium">
         ✓ Done
@@ -217,7 +309,7 @@ function StatusBadge({ status }) {
   }
   if (status === 'unlocked') {
     return (
-      <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-medium">
+      <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--world-accent)] text-white font-medium shadow-sm">
         Ready
       </span>
     );

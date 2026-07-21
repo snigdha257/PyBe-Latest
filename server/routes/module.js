@@ -16,7 +16,11 @@
 const express = require('express');
 const { LearningPath, Module, UserProgress } = require('../models');
 const { authRequired } = require('../middleware/auth');
+<<<<<<< Updated upstream
 const { substituteLearner } = require('../utils/learner');
+=======
+const { isPathCompleted } = require('../utils/completion');
+>>>>>>> Stashed changes
 
 const router = express.Router();
 
@@ -33,6 +37,20 @@ router.get('/module/:id', authRequired, async (req, res) => {
     }
 
     const pathDoc = await LearningPath.findById(moduleDoc.pathId).lean();
+
+    if (pathDoc && pathDoc.order > 1) {
+      const prevPath = await LearningPath.findOne({ order: pathDoc.order - 1 }).lean();
+      if (prevPath) {
+        const pathIsCompleted = await isPathCompleted(req.userId, prevPath._id);
+        if (!pathIsCompleted) {
+          return res.status(403).json({
+            error: 'placement_required',
+            pathId: prevPath._id,
+            pathName: prevPath.name
+          });
+        }
+      }
+    }
 
     const progress = await UserProgress.findOne({
       userId: req.userId,

@@ -1,18 +1,23 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from './auth/AuthContext';
+import { ThemeProvider } from './theme/ThemeContext';
 import ProtectedRoute from './auth/ProtectedRoute';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import Dashboard from './pages/Dashboard';
 import Module from './pages/Module';
+import PlacementQuiz from './pages/PlacementQuiz';
+import CaseStudy from './pages/CaseStudy';
+
 
 export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <Routes>
-          <Route path="/" element={<Home />} />
+        <ThemeProvider>
+          <Routes>
+            <Route path="/" element={<Home />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
           <Route
@@ -31,8 +36,26 @@ export default function App() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/placement/:pathId"
+            element={
+              <ProtectedRoute>
+                <PlacementQuiz />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/case-study/:pathId"
+            element={
+              <ProtectedRoute>
+                <CaseStudy />
+              </ProtectedRoute>
+            }
+          />
+
           <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+          </Routes>
+        </ThemeProvider>
       </AuthProvider>
     </BrowserRouter>
   );

@@ -132,4 +132,26 @@ export const api = {
     }),
   submitQuiz: (moduleId, answer) =>
     request('POST', `/api/progress/${moduleId}/quiz`, { answer }),
+<<<<<<< Updated upstream
+=======
+  regenerateStory: (moduleId) =>
+    request('POST', `/api/progress/${moduleId}/story/regenerate`),
+  evaluateModule: (moduleId, learnerAnswer) =>
+    request('POST', `/api/progress/${moduleId}/evaluate`, { learnerAnswer }),
+  markRevealed: (moduleId) =>
+    request('POST', `/api/progress/${moduleId}/reveal`),
+  getPlacementQuiz: (pathId) =>
+    request('GET', `/api/placement/${pathId}`),
+  submitPlacementQuiz: (pathId, answers) =>
+    request('POST', `/api/placement/${pathId}/submit`, { answers }),
+  getCaseStudy: (pathId) =>
+    request('GET', `/api/casestudy/${pathId}`),
+  submitCaseStudy: (progressId, payload) =>
+    request('PATCH', `/api/casestudy/${progressId}/submit`, payload),
+  getCapstone: () => request('GET', '/api/capstone'),
+  submitCapstone: (progressId, payload) =>
+    request('PATCH', `/api/capstone/${progressId}/submit`, payload),
+  updatePreferences: (data) =>
+    request('PATCH', '/api/me/preferences', data),
+>>>>>>> Stashed changes
 };

@@ -19,6 +19,8 @@ const meRouter = require('./routes/me');
 const progressRouter = require('./routes/progress');
 const moduleRouter = require('./routes/module');
 const userRouter = require('./routes/user');
+const placementRouter = require('./routes/placement');
+const casestudyRouter = require('./routes/casestudy');
 
 const PORT = process.env.PORT || 5000;
 
@@ -91,6 +93,8 @@ app.use('/api', meRouter);
 app.use('/api', progressRouter);
 app.use('/api', moduleRouter);
 app.use('/api', userRouter);
+app.use('/api', placementRouter);
+app.use('/api', casestudyRouter);
 
 // 404 fallback for unknown /api/* paths — return JSON, not Express's HTML.
 app.use('/api/*', (req, res) => {

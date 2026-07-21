@@ -1,17 +1,21 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { api } from '../api';
+import * as Icons from 'lucide-react';
 import PathTrail from '../components/PathTrail';
 import Skeleton from '../components/Skeleton';
+import ThemePicker from '../components/ThemePicker';
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const WorldIcon = user?.storyWorld?.icon ? Icons[user.storyWorld.icon] : null;
   const [paths, setPaths] = useState(null);
   const [summary, setSummary] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [showThemePicker, setShowThemePicker] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -52,8 +56,9 @@ export default function Dashboard() {
           {/* Top row: greeting + XP counter + nav buttons */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-bold text-slate-800">
+              <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
                 Hey, {user?.name || 'there'} 👋
+                {WorldIcon && <WorldIcon className="w-6 h-6 text-[var(--world-primary)]" />}
               </h1>
               <p className="text-sm text-slate-500">
                 {completedCount} of {curriculumTotal} modules complete
@@ -81,6 +86,12 @@ export default function Dashboard() {
                   aria-label="Refresh dashboard"
                 >
                   Refresh
+                </button>
+                <button
+                  onClick={() => setShowThemePicker(true)}
+                  className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded transition"
+                >
+                  Change theme
                 </button>
                 <button
                   onClick={() => {
@@ -151,14 +162,49 @@ export default function Dashboard() {
 
         {!loading && !error && paths && (
           <div className="space-y-6">
-            {paths.map((p) => (
-              <PathTrail
-                key={p.pathId}
-                pathName={p.name}
-                pathDescription={p.description}
-                modules={p.modules}
+            {paths.map((p, index) => {
+              const prevPath = index > 0 ? paths[index - 1] : null;
+              const isPrevPathCompleted = prevPath 
+                ? prevPath.modules.every(m => m.status === 'completed' || m.status === 'completed_via_placement')
+                : true;
+              
+              return (
+                <PathTrail
+                  key={p.pathId}
+                  pathId={p.pathId}
+                  pathName={p.name}
+                  pathDescription={p.description}
+                  modules={p.modules}
+                  caseStudy={p.caseStudy}
+                  isPrevPathCompleted={isPrevPathCompleted}
+                />
+              );
+            })}
+
+
+          </div>
+        )}
+
+        {showThemePicker && (
+          <div className="fixed inset-0 z-50 bg-slate-900/40 flex items-center justify-center p-4 overflow-y-auto backdrop-blur-sm">
+            <div className="bg-white rounded-3xl p-6 md:p-8 max-w-4xl w-full shadow-2xl relative my-auto">
+              <button
+                onClick={() => setShowThemePicker(false)}
+                className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 transition"
+                aria-label="Close"
+              >
+                ✕
+              </button>
+              <ThemePicker
+                mode="settings"
+                initialTheme={user?.theme}
+                onComplete={() => {
+                  setShowThemePicker(false);
+                  window.location.reload();
+                }}
+                onCancel={() => setShowThemePicker(false)}
               />
-            ))}
+            </div>
           </div>
         )}
       </div>

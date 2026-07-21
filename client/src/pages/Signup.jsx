@@ -17,6 +17,11 @@ import { useAuth } from '../auth/AuthContext';
  */
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+<<<<<<< Updated upstream
+=======
+import ThemePicker, { THEMES } from '../components/ThemePicker';
+
+>>>>>>> Stashed changes
 export default function Signup() {
   const navigate = useNavigate();
   const { signup } = useAuth();
@@ -84,6 +89,26 @@ export default function Signup() {
     }
   }
 
+<<<<<<< Updated upstream
+=======
+  // ── Step 1: Theme selection ────────────────────────────────────────
+  if (step === 1) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center py-12 p-6">
+        <ThemePicker
+          mode="signup"
+          initialTheme={selectedTheme}
+          onComplete={(theme) => {
+            setSelectedTheme(theme);
+            setStep(2);
+          }}
+        />
+      </div>
+    );
+  }
+
+  // ── Step 2: Account details ─────────────────────────────────────────
+>>>>>>> Stashed changes
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
       <form

@@ -6,6 +6,14 @@ const userSchema = new mongoose.Schema(
     passwordHash: { type: String, required: true },
     name: { type: String, required: true, trim: true },
     xp: { type: Number, default: 0 },
+<<<<<<< Updated upstream
+=======
+    storyWorldId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'StoryWorld',
+      default: null,
+    },
+>>>>>>> Stashed changes
     createdAt: { type: Date, default: Date.now },
   },
   { timestamps: false }

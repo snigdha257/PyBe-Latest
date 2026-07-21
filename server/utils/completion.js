@@ -133,8 +133,39 @@ async function tryCompleteAndUnlock(userId, moduleDoc, progress) {
   };
 }
 
+/**
+ * Checks if a user has completed all modules in a given learning path.
+ * A module is considered completed if its status is 'completed' or 'completed_via_placement'.
+ * 
+ * @param {ObjectId|String} userId 
+ * @param {ObjectId|String} pathId 
+ * @returns {Promise<boolean>}
+ */
+async function isPathCompleted(userId, pathId) {
+  const modules = await Module.find({ pathId }).select('_id').lean();
+  if (!modules || modules.length === 0) return false;
+
+  const moduleIds = modules.map(m => m._id);
+  const progressDocs = await UserProgress.find({
+    userId,
+    moduleId: { $in: moduleIds }
+  }).select('status').lean();
+
+  if (progressDocs.length !== moduleIds.length) return false;
+
+  return progressDocs.every(
+    p => p.status === 'completed' || p.status === 'completed_via_placement'
+  );
+}
+
+async function checkPathCaseStudyUnlock(userId, pathId) {
+  return await isPathCompleted(userId, pathId);
+}
+
 module.exports = {
   tryCompleteAndUnlock,
+  isPathCompleted,
+  checkPathCaseStudyUnlock,
   XP_QUIZ_PASS,
   XP_REFLECTION,
   XP_PER_MODULE,

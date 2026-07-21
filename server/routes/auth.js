@@ -12,7 +12,7 @@ const express = require('express');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 
-const { User, LearningPath, Module, UserProgress } = require('../models');
+const { User, LearningPath, Module, UserProgress, StoryWorld } = require('../models');
 
 const router = express.Router();
 
@@ -36,6 +36,10 @@ function publicUser(user) {
     email: user.email,
     name: user.name,
     xp: user.xp,
+<<<<<<< Updated upstream
+=======
+    theme: user.storyWorldId ? (user.storyWorldId.key || user.storyWorldId) : null,
+>>>>>>> Stashed changes
   };
 }
 
@@ -87,6 +91,17 @@ router.post('/signup', async (req, res) => {
     if (!password || password.length < 8) {
       return res.status(400).json({ error: 'Password must be at least 8 characters' });
     }
+<<<<<<< Updated upstream
+=======
+    if (!theme) {
+      return res.status(400).json({ error: 'Theme is required' });
+    }
+
+    const world = await StoryWorld.findOne({ key: theme }).lean();
+    if (!world) {
+      return res.status(400).json({ error: 'Invalid theme' });
+    }
+>>>>>>> Stashed changes
 
     const normalizedEmail = email.toLowerCase().trim();
 
@@ -101,7 +116,12 @@ router.post('/signup', async (req, res) => {
       email: normalizedEmail,
       name: name.trim(),
       passwordHash,
+<<<<<<< Updated upstream
+=======
+      storyWorldId: world._id,
+>>>>>>> Stashed changes
     });
+    user.storyWorldId = world; // populating manually for response
 
     const moduleCount = await buildInitialProgress(user._id);
     const token = signAccessToken(user._id);
@@ -126,7 +146,7 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ error: 'Email and password are required' });
     }
 
-    const user = await User.findOne({ email: email.toLowerCase().trim() });
+    const user = await User.findOne({ email: email.toLowerCase().trim() }).populate('storyWorldId');
     if (!user) {
       // Same generic message for unknown email vs bad password — don't leak which.
       return res.status(401).json({ error: 'Invalid email or password' });
