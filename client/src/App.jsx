@@ -1,5 +1,5 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
-import { AuthProvider } from './auth/AuthContext';
+import { AuthProvider, useAuth } from './auth/AuthContext';
 import { ThemeProvider } from './theme/ThemeContext';
 import ProtectedRoute from './auth/ProtectedRoute';
 import Home from './pages/Home';
@@ -9,13 +9,20 @@ import Dashboard from './pages/Dashboard';
 import Module from './pages/Module';
 import PlacementQuiz from './pages/PlacementQuiz';
 import CaseStudy from './pages/CaseStudy';
+import SandboxButton from './components/SandboxButton';
 
+function AuthenticatedSandboxButton() {
+  const { user } = useAuth();
+  if (!user) return null;
+  return <SandboxButton />;
+}
 
 export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
         <ThemeProvider>
+          <AuthenticatedSandboxButton />
           <Routes>
             <Route path="/" element={<Home />} />
           <Route path="/login" element={<Login />} />

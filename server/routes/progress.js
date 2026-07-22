@@ -15,11 +15,7 @@
  * module in the same path is unlocked. Last module in a path → nothing further.
  */
 const express = require('express');
-<<<<<<< Updated upstream
-const { LearningPath, Module, UserProgress } = require('../models');
-=======
 const { LearningPath, Module, User, UserProgress, CaseStudy } = require('../models');
->>>>>>> Stashed changes
 const { authRequired } = require('../middleware/auth');
 const { tryCompleteAndUnlock } = require('../utils/completion');
 

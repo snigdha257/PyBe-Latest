@@ -1,63 +1,61 @@
-import { useRef, useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 
-export function usePyodideRunner() {
-  const workerRef = useRef(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isRunning, setIsRunning] = useState(false);
-  
-  const callbacksRef = useRef(new Map());
-  const idCounterRef = useRef(0);
-  const hasLoadedRef = useRef(false);
+let sharedWorker = null;
+const callbacks = new Map();
+let idCounter = 0;
+let hasLoaded = false;
 
-  const initWorker = useCallback(() => {
-    if (workerRef.current) return workerRef.current;
+function getSharedWorker() {
+  if (!sharedWorker) {
+    // Using standard syntax for Vite
+    sharedWorker = new Worker(new URL('./pyodideWorker.js', import.meta.url));
     
-    if (!hasLoadedRef.current) {
-      setIsLoading(true);
-    }
-    
-    // We use '?worker' for Vite to properly handle it, but sometimes new URL is enough. 
-    // Using standard standard syntax:
-    const worker = new Worker(new URL('./pyodideWorker.js', import.meta.url));
-    
-    worker.onmessage = (e) => {
+    sharedWorker.onmessage = (e) => {
       const { id, success, stdout, error, trace } = e.data;
-      const callback = callbacksRef.current.get(id);
+      const callback = callbacks.get(id);
       
       if (callback) {
-        callbacksRef.current.delete(id);
+        callbacks.delete(id);
         callback({ success, stdout, error, trace });
       }
     };
-    
-    workerRef.current = worker;
-    return worker;
+  }
+  return sharedWorker;
+}
+
+export function usePyodideRunner() {
+  const [isLoading, setIsLoading] = useState(false);
+  const [isRunning, setIsRunning] = useState(false);
+  const isMounted = useRef(true);
+
+  useEffect(() => {
+    isMounted.current = true;
+    return () => {
+      isMounted.current = false;
+    };
   }, []);
 
   const runCode = useCallback(async (code) => {
     return new Promise((resolve) => {
-      const worker = initWorker();
+      const worker = getSharedWorker();
       
+      if (!hasLoaded) {
+        setIsLoading(true);
+      }
       setIsRunning(true);
       
-      const id = ++idCounterRef.current;
-      callbacksRef.current.set(id, (result) => {
-        setIsLoading(false);
-        hasLoadedRef.current = true;
-        setIsRunning(false);
+      const id = ++idCounter;
+      callbacks.set(id, (result) => {
+        hasLoaded = true;
+        if (isMounted.current) {
+          setIsLoading(false);
+          setIsRunning(false);
+        }
         resolve(result);
       });
       
       worker.postMessage({ id, code });
     });
-  }, [initWorker]);
-
-  useEffect(() => {
-    return () => {
-      if (workerRef.current) {
-        workerRef.current.terminate();
-      }
-    };
   }, []);
 
   return { runCode, isLoading, isRunning };

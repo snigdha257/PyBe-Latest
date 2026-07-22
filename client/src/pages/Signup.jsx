@@ -17,11 +17,7 @@ import { useAuth } from '../auth/AuthContext';
  */
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-<<<<<<< Updated upstream
-=======
-import ThemePicker, { THEMES } from '../components/ThemePicker';
-
->>>>>>> Stashed changes
+import ThemePicker from '../components/ThemePicker';
 export default function Signup() {
   const navigate = useNavigate();
   const { signup } = useAuth();
@@ -30,6 +26,8 @@ export default function Signup() {
   const [fieldErrors, setFieldErrors] = useState({});
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [step, setStep] = useState(1);
+  const [selectedTheme, setSelectedTheme] = useState('fantasy');
 
   function update(field) {
     return (e) => {
@@ -75,6 +73,7 @@ export default function Signup() {
         name: form.name.trim(),
         email: form.email.trim(),
         password: form.password,
+        theme: selectedTheme,
       });
       navigate('/dashboard', { replace: true });
     } catch (err) {
@@ -89,8 +88,6 @@ export default function Signup() {
     }
   }
 
-<<<<<<< Updated upstream
-=======
   // ── Step 1: Theme selection ────────────────────────────────────────
   if (step === 1) {
     return (
@@ -108,7 +105,6 @@ export default function Signup() {
   }
 
   // ── Step 2: Account details ─────────────────────────────────────────
->>>>>>> Stashed changes
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
       <form

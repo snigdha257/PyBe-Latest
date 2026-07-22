@@ -132,8 +132,6 @@ export const api = {
     }),
   submitQuiz: (moduleId, answer) =>
     request('POST', `/api/progress/${moduleId}/quiz`, { answer }),
-<<<<<<< Updated upstream
-=======
   regenerateStory: (moduleId) =>
     request('POST', `/api/progress/${moduleId}/story/regenerate`),
   evaluateModule: (moduleId, learnerAnswer) =>
@@ -153,5 +151,4 @@ export const api = {
     request('PATCH', `/api/capstone/${progressId}/submit`, payload),
   updatePreferences: (data) =>
     request('PATCH', '/api/me/preferences', data),
->>>>>>> Stashed changes
 };

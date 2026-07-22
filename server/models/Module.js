@@ -5,9 +5,6 @@ const moduleSchema = new mongoose.Schema(
     pathId: { type: mongoose.Schema.Types.ObjectId, ref: 'LearningPath', required: true, index: true },
     name: { type: String, required: true, trim: true },
     order: { type: Number, required: true },
-<<<<<<< Updated upstream
-=======
-
     // ── Problem-first content ────────────────────────────────────
     problem: {
       type: String,
@@ -37,7 +34,6 @@ const moduleSchema = new mongoose.Schema(
     },
 
     // ── Legacy fields (seeded content, unused in new flow) ───────
->>>>>>> Stashed changes
     story: { type: String, default: '' },
     whyPairing: { type: String, default: '' },
     practicalTask: { type: String, default: '' },

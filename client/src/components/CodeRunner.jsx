@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { usePyodideRunner } from '../pyodide/usePyodideRunner';
+import CodeEditor from './CodeEditor';
 
 export default function CodeRunner({ initialCode = '', onOutputChange, onCodeChange }) {
   const [code, setCode] = useState(initialCode);
@@ -50,18 +51,14 @@ export default function CodeRunner({ initialCode = '', onOutputChange, onCodeCha
 
   return (
     <div className="space-y-4">
-      <div className="border border-slate-300 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-emerald-400">
-        <textarea
-          value={code}
-          onChange={(e) => {
-            setCode(e.target.value);
-            if (onCodeChange) onCodeChange(e.target.value);
-          }}
-          rows={10}
-          spellCheck={false}
-          className="w-full p-4 text-slate-800 font-mono text-sm resize-none focus:outline-none"
-        />
-      </div>
+      <CodeEditor
+        value={code}
+        onChange={(val) => {
+          setCode(val);
+          if (onCodeChange) onCodeChange(val);
+        }}
+        rows={10}
+      />
       
       <button
         onClick={handleRun}
@@ -118,20 +115,12 @@ export default function CodeRunner({ initialCode = '', onOutputChange, onCodeCha
           
           <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-slate-200">
             <div className="md:col-span-2 p-4 bg-slate-50 overflow-x-auto">
-              <pre className="font-mono text-sm leading-relaxed">
-                {code.split('\\n').map((line, i) => {
-                  const lineNum = i + 1;
-                  const isCurrent = trace[traceIndex].line === lineNum;
-                  return (
-                    <div key={i} className={`flex px-2 rounded ${isCurrent ? 'bg-amber-100 text-amber-900 font-bold' : 'text-slate-600'}`}>
-                      <span className="w-8 select-none opacity-50 text-right pr-4 border-r border-slate-300 mr-4 shrink-0">
-                        {lineNum}
-                      </span>
-                      <span>{line}</span>
-                    </div>
-                  );
-                })}
-              </pre>
+              <CodeEditor
+                value={code}
+                readOnly={true}
+                highlightLine={trace[traceIndex].line}
+                rows={code.split('\n').length}
+              />
             </div>
             
             <div className="p-4 bg-white">

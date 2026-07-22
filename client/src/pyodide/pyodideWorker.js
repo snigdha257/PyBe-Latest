@@ -11,28 +11,71 @@ import time
 import traceback
 
 class ExecutionTracer:
-    def __init__(self, code, timeout_ms=5000):
+    def __init__(self, code, timeout_ms=5000, max_steps=2000):
         self.code = code
         self.timeout_ms = timeout_ms
+        self.max_steps = max_steps
         self.start_time = 0
+        self.step_count = 0
         self.trace = []
         
     def trace_calls(self, frame, event, arg):
+        # Wall-clock timeout check runs on EVERY callback
         if (time.time() * 1000) - self.start_time > self.timeout_ms:
-            raise TimeoutError("Took too long — check for infinite loops.")
+            raise TimeoutError("Took too long")
             
+        # Hard step-count limit runs on EVERY callback
+        self.step_count += 1
+        if self.step_count > self.max_steps:
+            raise TimeoutError(f"Loop ran too many times to trace — showing the first {len(self.trace)} steps")
+
         if event == 'line':
             if frame.f_code.co_filename == "<string>":
-                locals_dict = {}
-                for k, v in frame.f_locals.items():
-                    if not k.startswith('__'):
-                        try:
-                            locals_dict[k] = repr(v)
-                        except Exception:
-                            locals_dict[k] = "<unrepresentable>"
+                frames = []
+                f = frame
+                while f is not None:
+                    if f.f_code.co_filename == "<string>":
+                        locals_list = []
+                        for k, v in f.f_locals.items():
+                            if not k.startswith('__'):
+                                try:
+                                    rep = repr(v)
+                                    if len(rep) > 100:
+                                        rep = rep[:97] + "..."
+                                        
+                                    obj_id = None
+                                    if type(v) not in (int, float, str, bool, type(None)):
+                                        obj_id = id(v)
+                                        
+                                    locals_list.append({
+                                        "name": k,
+                                        "value": rep,
+                                        "objectId": obj_id
+                                    })
+                                except Exception:
+                                    locals_list.append({
+                                        "name": k,
+                                        "value": "<unrepresentable>",
+                                        "objectId": None
+                                    })
+                        
+                        name = f.f_code.co_name
+                        if name == "<module>":
+                            name = "global"
+                            
+                        frames.append({
+                            "name": name,
+                            "locals": locals_list
+                        })
+                    f = f.f_back
+                
+                frames.reverse()
+                for i, frm in enumerate(frames):
+                    frm["depth"] = i
+                    
                 self.trace.append({
                     "line": frame.f_lineno,
-                    "locals": locals_dict
+                    "frames": frames
                 })
         return self.trace_calls
 

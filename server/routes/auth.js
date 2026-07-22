@@ -36,10 +36,7 @@ function publicUser(user) {
     email: user.email,
     name: user.name,
     xp: user.xp,
-<<<<<<< Updated upstream
-=======
     theme: user.storyWorldId ? (user.storyWorldId.key || user.storyWorldId) : null,
->>>>>>> Stashed changes
   };
 }
 
@@ -80,7 +77,7 @@ async function buildInitialProgress(userId) {
 // POST /api/auth/signup
 router.post('/signup', async (req, res) => {
   try {
-    const { email, name, password } = req.body || {};
+    const { email, name, password, theme } = req.body || {};
 
     if (!EMAIL_RE.test(email || '')) {
       return res.status(400).json({ error: 'Valid email is required' });
@@ -91,8 +88,6 @@ router.post('/signup', async (req, res) => {
     if (!password || password.length < 8) {
       return res.status(400).json({ error: 'Password must be at least 8 characters' });
     }
-<<<<<<< Updated upstream
-=======
     if (!theme) {
       return res.status(400).json({ error: 'Theme is required' });
     }
@@ -101,7 +96,6 @@ router.post('/signup', async (req, res) => {
     if (!world) {
       return res.status(400).json({ error: 'Invalid theme' });
     }
->>>>>>> Stashed changes
 
     const normalizedEmail = email.toLowerCase().trim();
 
@@ -116,10 +110,7 @@ router.post('/signup', async (req, res) => {
       email: normalizedEmail,
       name: name.trim(),
       passwordHash,
-<<<<<<< Updated upstream
-=======
       storyWorldId: world._id,
->>>>>>> Stashed changes
     });
     user.storyWorldId = world; // populating manually for response
 

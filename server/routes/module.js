@@ -16,11 +16,8 @@
 const express = require('express');
 const { LearningPath, Module, UserProgress } = require('../models');
 const { authRequired } = require('../middleware/auth');
-<<<<<<< Updated upstream
 const { substituteLearner } = require('../utils/learner');
-=======
 const { isPathCompleted } = require('../utils/completion');
->>>>>>> Stashed changes
 
 const router = express.Router();
 
